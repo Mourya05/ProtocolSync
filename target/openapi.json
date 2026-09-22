@@ -1,0 +1,306 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Protocol-Sync Target Service",
+    "version": "0.1.0",
+    "description": "Deliberately buggy microservice for adversarial fuzzing in Protocol-Sync Phase 1. Three routes with engineered edge-case branches that surface as HTTP 500."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/order/create": {
+      "post": {
+        "operationId": "create_order",
+        "summary": "Create an order",
+        "description": "Accepts order details and returns the final price after discount. DELIBERATE BUGS: discount_pct=100 causes ZeroDivisionError; negative total_amount is not validated.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (Pydantic)."
+          },
+          "500": {
+            "description": "Internal server error from a deliberate edge-case bug (e.g. ZeroDivisionError when discount_pct=100)."
+          }
+        }
+      }
+    },
+    "/users/{user_id}/profile": {
+      "put": {
+        "operationId": "update_profile",
+        "summary": "Update user profile",
+        "description": "Updates a user's profile date range and username. DELIBERATE BUGS: start_date >= end_date raises ValueError; short email domain raises IndexError; malformed date string raises ValueError.",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "Unique user identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileUpdateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (Pydantic)."
+          },
+          "500": {
+            "description": "Internal server error from a deliberate edge-case bug."
+          }
+        }
+      }
+    },
+    "/transfer": {
+      "post": {
+        "operationId": "transfer",
+        "summary": "Transfer funds between accounts",
+        "description": "Simulates a fund transfer. DELIBERATE BUGS: self-transfer raises AssertionError; non-numeric amount raises InvalidOperation; very large amount raises ArithmeticError.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (Pydantic)."
+          },
+          "500": {
+            "description": "Internal server error from a deliberate edge-case bug."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "OrderItem": {
+        "type": "object",
+        "required": ["product_id", "quantity", "unit_price"],
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Unique product identifier."
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of units ordered."
+          },
+          "unit_price": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Price per unit in the order currency."
+          }
+        }
+      },
+      "CreateOrderRequest": {
+        "type": "object",
+        "required": ["items", "total_amount"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItem"
+            },
+            "description": "List of ordered items."
+          },
+          "discount_pct": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 100.0,
+            "default": 0.0,
+            "description": "Discount percentage (0–100). WARNING: value 100 triggers ZeroDivisionError (deliberate bug)."
+          },
+          "total_amount": {
+            "type": "number",
+            "description": "Declared order total. Negative values are not validated — deliberate bug."
+          },
+          "customer_note": {
+            "type": "string",
+            "description": "Optional free-text note from the customer."
+          }
+        }
+      },
+      "CreateOrderResponse": {
+        "type": "object",
+        "required": ["order_id", "final_amount", "applied_discount"],
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "System-assigned order identifier."
+          },
+          "final_amount": {
+            "type": "number",
+            "description": "Final amount after discount applied."
+          },
+          "applied_discount": {
+            "type": "number",
+            "description": "Absolute discount amount deducted."
+          }
+        }
+      },
+      "ProfileUpdateRequest": {
+        "type": "object",
+        "required": ["username", "start_date", "end_date"],
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "User display name. If it contains '@', domain must be ≥ 2 chars or IndexError occurs. If it starts with a digit, must be ≥ 11 chars or IndexError occurs."
+          },
+          "start_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Profile validity start date (ISO 8601 YYYY-MM-DD). Must be strictly before end_date."
+          },
+          "end_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Profile validity end date (ISO 8601 YYYY-MM-DD). Must be strictly after start_date."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Arbitrary key-value metadata associated with the profile."
+          }
+        }
+      },
+      "ProfileUpdateResponse": {
+        "type": "object",
+        "required": ["user_id", "username", "duration_days"],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier echoed from the path parameter."
+          },
+          "username": {
+            "type": "string",
+            "description": "Updated display name."
+          },
+          "duration_days": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Computed number of calendar days between start_date and end_date."
+          }
+        }
+      },
+      "TransferRequest": {
+        "type": "object",
+        "required": ["from_account", "to_account", "amount"],
+        "properties": {
+          "from_account": {
+            "type": "string",
+            "description": "Source account identifier. Must differ from to_account."
+          },
+          "to_account": {
+            "type": "string",
+            "description": "Destination account identifier. Must differ from from_account."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Transfer amount as a decimal string (supports arbitrary precision). Non-numeric values raise InvalidOperation. Values > 10^38 raise ArithmeticError."
+          },
+          "currency": {
+            "type": "string",
+            "default": "USD",
+            "enum": ["USD", "EUR", "GBP"],
+            "description": "ISO 4217 currency code."
+          },
+          "memo": {
+            "type": "string",
+            "description": "Optional free-text transaction memo."
+          }
+        }
+      },
+      "TransferResponse": {
+        "type": "object",
+        "required": [
+          "transaction_id",
+          "from_account",
+          "to_account",
+          "amount",
+          "status"
+        ],
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "description": "System-assigned transaction identifier."
+          },
+          "from_account": {
+            "type": "string",
+            "description": "Source account identifier."
+          },
+          "to_account": {
+            "type": "string",
+            "description": "Destination account identifier."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Transferred amount echoed as a decimal string."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["COMPLETED", "PENDING", "FAILED"],
+            "description": "Final transaction status."
+          }
+        }
+      }
+    }
+  }
+}

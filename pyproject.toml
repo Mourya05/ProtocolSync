@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project metadata
+# ─────────────────────────────────────────────────────────────────────────────
+[project]
+name = "protocol-sync"
+version = "0.2.0"
+description = "RL-guided adversarial fuzzing and mutation testing engine for API protocols — Phase 1 & 2"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["fuzzing", "mutation-testing", "rl", "api", "openapi", "gymnasium"]
+
+dependencies = [
+    # HTTP / ASGI
+    "fastapi>=0.104.0",
+    "httpx>=0.25.0",
+    "starlette>=0.27.0",
+    "uvicorn[standard]>=0.24.0",
+    "anyio>=4.0.0",
+
+    # Schema parsing & validation
+    "pyyaml>=6.0",
+    "jsonschema>=4.19.0",
+    "pydantic>=2.4.0",
+
+    # Branch-coverage instrumentation
+    "coverage[toml]>=7.3.0",
+
+    # RL environment (Phase 2)
+    "gymnasium>=0.26.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Build — expose core, target, harness, envs as top-level packages
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.hatch.build.targets.wheel]
+packages = ["core", "target", "harness", "envs"]
+
+[tool.hatch.build]
+include = ["core", "target", "harness", "envs"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# pytest
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+# Add project root to sys.path so that `from core.parser import …` resolves
+pythonpath = ["."]
+testpaths   = ["tests"]
+asyncio_mode = "auto"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# coverage (used programmatically by harness/runner.py — these are defaults)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+branch      = true
+source      = ["target"]
+concurrency = "thread"
+
+[tool.coverage.report]
+show_missing = true
+skip_empty   = true
